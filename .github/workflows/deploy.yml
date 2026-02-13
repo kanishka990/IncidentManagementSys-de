@@ -1,4 +1,4 @@
-name: Deploy Full Stack App
+name: Build and Push Docker Images
 
 on:
   push:
@@ -6,29 +6,25 @@ on:
       - main
 
 jobs:
-  build-and-push:
+  build:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout code
+      - name: Checkout Code
         uses: actions/checkout@v3
 
-      - name: Login to DockerHub
+      - name: Login to Docker Hub
         uses: docker/login-action@v2
         with:
           username: ${{ secrets.DOCKER_USERNAME }}
           password: ${{ secrets.DOCKER_PASSWORD }}
 
-      # BACKEND IMAGE
-      - name: Build Backend
-        run: docker build -t ${{ secrets.DOCKER_USERNAME }}/incident-backend ./backend
+      - name: Build Backend Image
+        run: |
+          docker build -t ${{ secrets.DOCKER_USERNAME }}/incident-backend ./backend
+          docker push ${{ secrets.DOCKER_USERNAME }}/incident-backend
 
-      - name: Push Backend
-        run: docker push ${{ secrets.DOCKER_USERNAME }}/incident-backend
-
-      # FRONTEND IMAGE
-      - name: Build Frontend
-        run: docker build -t ${{ secrets.DOCKER_USERNAME }}/incident-frontend ./frontend
-
-      - name: Push Frontend
-        run: docker push ${{ secrets.DOCKER_USERNAME }}/incident-frontend
+      - name: Build Frontend Image
+        run: |
+          docker build -t ${{ secrets.DOCKER_USERNAME }}/incident-frontend ./frontend
+          docker push ${{ secrets.DOCKER_USERNAME }}/incident-frontend
