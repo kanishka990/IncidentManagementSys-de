@@ -16,79 +16,72 @@ permissions:
   contents: write
 
 concurrency:
-  group: full-cicd-pipeline
+  group: full-cicd-flow
   cancel-in-progress: true
 
 jobs:
 
-# --------------------------------------------------
-# STEP 3: Build & Test (DEV)
-# --------------------------------------------------
-  build-test:
-    name: Build & Test DEV
+# ==================================================
+# 🔷 DEV STAGE
+# ==================================================
+  dev-build:
+    name: DEV Build
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout DEV code
+      - name: Checkout DEV Code
         uses: actions/checkout@v4
 
-      - name: Run Tests
-        run: echo "✅ DEV testing successful"
+      - name: Build / Test DEV
+        run: echo "✅ DEV build successful"
 
-# --------------------------------------------------
-# STEP 4: Notify QA (DEV)
-# --------------------------------------------------
-  notify-qa-dev:
-    name: Notify QA (DEV)
-    needs: build-test
+  dev-qa:
+    name: DEV QA Notification
+    needs: dev-build
     runs-on: ubuntu-latest
 
     steps:
-      - name: Send Email to QA
+      - name: Send Email to QA (DEV)
         uses: dawidd6/action-send-mail@v3
         with:
           server_address: smtp.gmail.com
           server_port: 587
+          secure: true
           username: ${{ secrets.EMAIL_USERNAME }}
           password: ${{ secrets.EMAIL_PASSWORD }}
           subject: "🔍 DEV Ready for Testing"
           body: |
-            Hello QA,
-
             DEV build is ready.
 
-            ✔ Test the application
+            ✔ Please test
             ✔ Approve if no bugs found
 
-            Repository: ${{ github.repository }}
+            Repo: ${{ github.repository }}
           to: aws.studen@gmail.com
           from: avantikagautam022@gmail.com
 
-# --------------------------------------------------
-# STEP 5: QA Approval (DEV)
-# --------------------------------------------------
-  qa-approval-dev:
-    name: QA Approval (DEV)
-    needs: notify-qa-dev
+  dev-approval:
+    name: DEV Approval
+    needs: dev-qa
     runs-on: ubuntu-latest
 
     environment:
       name: dev-approval
 
     steps:
-      - name: Waiting for QA Approval (DEV)
-        run: echo "⏳ Waiting for QA approval (DEV)..."
+      - name: Waiting for DEV QA Approval
+        run: echo "⏳ Waiting for DEV QA approval..."
 
-# --------------------------------------------------
-# STEP 6: Promote DEV → UAT
-# --------------------------------------------------
+# ==================================================
+# 🔷 UAT STAGE
+# ==================================================
   promote-to-uat:
     name: Promote DEV → UAT
-    needs: qa-approval-dev
+    needs: dev-approval
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout Repository
+      - name: Checkout Repo
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
@@ -97,66 +90,75 @@ jobs:
         run: |
           git config user.name "github-actions"
           git config user.email "actions@github.com"
-
           git fetch origin
           git checkout uat || git checkout -b uat
           git merge origin/dev --no-edit
           git push origin uat
 
-# --------------------------------------------------
-# STEP 7: Notify QA (UAT)
-# --------------------------------------------------
-  notify-qa-uat:
-    name: Notify QA (UAT)
+  uat-build:
+    name: UAT Build
     needs: promote-to-uat
     runs-on: ubuntu-latest
 
     steps:
-      - name: Send Email to QA
+      - name: Checkout UAT Code
+        uses: actions/checkout@v4
+        with:
+          ref: uat
+
+      - name: Build / Test UAT
+        run: echo "✅ UAT build successful"
+
+  uat-qa:
+    name: UAT QA Notification
+    needs: uat-build
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Send Email to QA (UAT)
         uses: dawidd6/action-send-mail@v3
         with:
           server_address: smtp.gmail.com
           server_port: 587
+          secure: true
           username: ${{ secrets.EMAIL_USERNAME }}
           password: ${{ secrets.EMAIL_PASSWORD }}
           subject: "🔍 UAT Ready for Testing"
           body: |
-            Hello QA,
-
             UAT build is ready.
 
-            ✔ Test carefully
+            ✔ Please test again
             ✔ Approve if everything is correct
 
-            Repository: ${{ github.repository }}
+            Repo: ${{ github.repository }}
           to: aws.studen@gmail.com
           from: avantikagautam022@gmail.com
 
-# --------------------------------------------------
-# STEP 8: QA Approval (UAT)
-# --------------------------------------------------
-  qa-approval-uat:
-    name: QA Approval (UAT)
-    needs: notify-qa-uat
+  uat-approval:
+    name: UAT Approval
+    needs: uat-qa
     runs-on: ubuntu-latest
 
     environment:
       name: uat-approval
 
     steps:
-      - name: Waiting for QA Approval (UAT)
-        run: echo "⏳ Waiting for QA approval (UAT)..."
+      - name: Waiting for UAT QA Approval
+        run: echo "⏳ Waiting for UAT QA approval..."
 
-# --------------------------------------------------
-# STEP 9: Promote UAT → PROD
-# --------------------------------------------------
-  promote-to-prod:
-    name: Promote UAT → PROD
-    needs: qa-approval-uat
+# ==================================================
+# 🔷 PRODUCTION STAGE
+# ==================================================
+  prod-deploy:
+    name: Production Deployment
+    needs: uat-approval
     runs-on: ubuntu-latest
 
+    environment:
+      name: production
+
     steps:
-      - name: Checkout Repository
+      - name: Checkout Repo
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
@@ -165,35 +167,22 @@ jobs:
         run: |
           git config user.name "github-actions"
           git config user.email "actions@github.com"
-
           git fetch origin
           git checkout production || git checkout -b production
           git merge origin/uat --no-edit
           git push origin production
 
-# --------------------------------------------------
-# STEP 10: Notify Deployment Success
-# --------------------------------------------------
-  notify-success:
-    name: Notify Deployment Success
-    needs: promote-to-prod
-    runs-on: ubuntu-latest
-
-    steps:
-      - name: Email DevOps Team
+      - name: Notify Deployment Success
         uses: dawidd6/action-send-mail@v3
         with:
           server_address: smtp.gmail.com
           server_port: 587
+          secure: true
           username: ${{ secrets.EMAIL_USERNAME }}
           password: ${{ secrets.EMAIL_PASSWORD }}
           subject: "🚀 Production Deployment Success"
           body: |
-            Application successfully deployed to PRODUCTION.
+            Application deployed successfully to PRODUCTION.
 
-            ✔ QA verified at all stages
+            ✔ DEV + UAT QA passed
             ✔ No bugs found
-
-            Repository: ${{ github.repository }}
-          to: avantikagautam022@gmail.com
-          from: avantikagautam022@gmail.com
